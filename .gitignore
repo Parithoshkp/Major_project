@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.jupyter.log
+*:Zone.Identifier
+models/*.tmp
