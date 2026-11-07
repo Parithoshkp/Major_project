@@ -67,6 +67,12 @@ made and why, and the key results. **Update it at the end of every step.**
 - Added this file (`docs/PROJECT_LOG.md`).
 - Timing check on ds5 (2400 curves, 4 jobs in parallel): ~25 ms per optimiser step per member, so 5000 steps ≈ 2 min.
 
+### 2026-11-07: notebook 04 drafted
+- `tools/notebook_src/nb04.py` and `notebooks/04_uncertainty_active_learning.ipynb` (31 cells): ensemble accuracy, coverage and calibration,
+  σ against error, temperature out-of-distribution test, V_D/T bands, and active learning with 3 rules (random, most uncertain, uncertainty-weighted).
+- Prototyped 4 active-learning rules. The k-means "spread-out" rule was dropped because it did worse than the uncertainty-weighted lottery.
+- The full run was stopped at the user's request. Next session: execute it, write the summaries from real outputs, and update this log.
+
 ## 5. Results
 
 ### Notebook 02: the paper's RFR (ds4 test set unless noted)
@@ -96,7 +102,10 @@ made and why, and the key results. **Update it at the end of every step.**
 - **Caveat:** λ and A_tun are formulas inside the simulator, so their gain may be smaller on real TCAD.
 
 ### Notebook 04: uncertainty and active learning
-*(filled in after the run)*
+*Notebook built but not yet executed (the run was stopped 2026-11-07). These are **prototype** numbers with the same splits and settings. Replace them with the notebook's own outputs after the run.*
+- Ensemble of 5 MLPs on ds5 (V_D and T vary): median error **1.65 %** vs 1.73–2.36 % for single networks (noise floor 0.34 %).
+- Error bars: raw ±2σ coverage **77 %** (overconfident). After a single calibration factor k ≈ 1.8 fitted on validation curves it is **95.7 %**. Spearman(σ, error) = 0.40.
+- Active learning (50 → 400 curves): uncertainty-based picking lowers the **p95 (bad-case) error** (e.g. 18.7 % vs 25.6 % at 150 curves) but **not the median**. Pure top-σ picking is worse than random on the median after ~150 curves (5.3 % vs 3.7 % at 400). The uncertainty-weighted lottery is the best compromise. One seed per rule.
 
 ## 6. Known limitations (keep these in the report)
 1. All data is analytical, not TCAD. It is smooth and easier to learn than real TCAD.
