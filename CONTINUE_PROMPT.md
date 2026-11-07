@@ -85,7 +85,7 @@ Repo on branch `main` (`.venv`, checkpoints and `.jupyter.log` are ignored). Com
 - `94604cd` baseline (simulator, datasets, nb01–02)
 - `d289901` notebook 03
 - `caf2dc8` penalty dropped by default, parallel `DeepEnsemble`, `docs/PROJECT_LOG.md`
-- (next) this handoff commit, plus the unexecuted nb04 source and notebook
+- `8a43b19` nb04 drafted (not executed) and this handoff
 
 I said "commit the project so far and move ahead", so committing **finished steps** is fine. Still tell me what you committed.
 
@@ -96,8 +96,7 @@ I said "commit the project so far and move ahead", so committing **finished step
 
 ## 👉 Where to pick up (session of 2026-11-07 ended here)
 Notebook 04 is **written and built** (`tools/notebook_src/nb04.py` → `notebooks/04_uncertainty_active_learning.ipynb`, 31 cells),
-but its full run was **stopped on purpose** when I ended the session. It has no outputs. `figures/04_reliability.png` and
-`figures/04_sigma_vs_error.png` are left over from the stopped run, and the rerun overwrites them.
+but its full run was **stopped on purpose** when I ended the session. It has no outputs, and no 04 figures exist yet.
 
 **Do this next, in order:**
 1. Check the environment, then tell me the run takes about **25 minutes** (two 5-network ensembles ≈ 6 min, active learning with 3 rules ≈ 17 min) and run it in the background:
