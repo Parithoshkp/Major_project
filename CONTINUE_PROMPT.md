@@ -38,15 +38,17 @@ tfet/                  shared Python package (import with sys.path.append("..") 
   metrics.py           figures_of_merit(V_G, I_D) -> I_on, I_off, on_off, V_th (const. current 1e-10), SS_min, SS_avg
   dataset.py           simulate(devices_df), one_at_a_time, lov_tn_pairs, with_drain_bias, all_parameters, extended (V_D + T)
   evaluate.py          curve_split, regression_report, error_by_decade, fom_per_curve, fom_errors, monotonic_violations, FEATURES
-  surrogate.py         LogCurrentSurrogate (MLP on log10 I_D, physics features + monotonicity penalty), DeepEnsemble. WRITTEN BUT NOT YET TESTED
+  surrogate.py         LogCurrentSurrogate (MLP on log10 I_D, physics features + monotonicity penalty), train_run (fixed step budget, safe for joblib), DeepEnsemble (ensemble itself not yet run)
 notebooks/
   01_paper_device_and_data.ipynb      DONE: physics, plots, generates data/ds1..ds5
   02_baseline_rfr_reproduction.ipynb  DONE: reproduces paper RFR, then Part B shows where it breaks
+  03_improved_surrogates.ipynb        DONE: 7-model comparison, ablation, extrapolation, learning curve
+models/                best_surrogate_ds4.joblib (PI-MLP seed 0)
 data/                  ds1_one_at_a_time (400 curves), ds2_lov_tn (200), ds3_drain_bias (900), ds4_all_params (2500), ds5_extended (3000, V_D + T); learning_curve_rfr.csv
                        long format: curve_id, L_ov, WK, t_n, t_ox, V_D, T, V_G (51 pts, 0-0.5 V), I_D; saved as .pkl
 figures/               saved PNGs from the notebooks
 tools/build_nb.py      converts a "# %%" / "# %% [markdown]" percent-format .py into .ipynb (kernel tfet-ml)
-tools/notebook_src/    nb01.py, nb02.py = editable sources of the notebooks
+tools/notebook_src/    nb01.py, nb02.py, nb03.py = editable sources of the notebooks
 ```
 Build and run a notebook:
 ```bash
@@ -66,8 +68,36 @@ Gotchas:
 - Extrapolation to t_ox < 2 nm gives linear R² 37%.
 - Learning curve: 25 to 1600 training curves gives median relative error 451% down to 77%.
 
+## Key results from notebook 03 (ds4 test, MLPs = mean of 3 seeds, noise floor 0.34 % median error)
+- Median relative error: RFR-linear 62 %, RFR-log 26 %, XGB-log 17.7 %, XGB-log+feat 11.8 %, MLP-log 1.88 %, MLP-log+feat 1.00 %, PI-MLP 0.99 %.
+- PI-MLP: log R² 99.998 %, I_OFF error 0.016 decades, V_th missing 0 %, SS_min error 0.60 mV/dec.
+- Extrapolation to t_ox < 2 nm: linear R² 37.3 % (RFR) vs 98.8 % (PI-MLP); median error 74.7 % vs 4.0 %.
+- Learning curve: PI-MLP on 25 curves (6.3 %) beats RFR on 1600 (76.8 %) and XGB-log on 1600 (20.1 %).
+- **Monotonicity penalty: no measurable benefit** in any test (within seed spread). Report it as a negative result, don't claim it as a gain.
+- **Physics features are partly circular:** λ and A_tun are formulas inside the simulator, so their gain may not carry over to TCAD.
+- MLP timings in nb03 are rough because runs shared the CPU. The 1.9 % learning-curve plateau is probably the 3000-step budget (untested).
+
+## Git
+The project is a git repo on branch `main` (`.venv`, checkpoints and `.jupyter.log` are ignored). Commit only when I ask.
+Only the baseline commit exists so far. **All notebook 03 work is still uncommitted** (nb03, figures, CSVs, `models/`, the `tfet/surrogate.py` changes and this file).
+
+## Waiting for my answer (ask me these first, before doing anything else)
+Notebook 03 is finished and reported to me. I had not answered these when the last session closed:
+1. Should notebook 03 be committed?
+2. Should the monotonicity penalty be dropped from the main model for notebook 04 and kept in the report as a negative result? (Claude recommended yes: it adds training time for no gain.)
+3. Should notebook 04 go ahead?
+
+## Notes for notebook 04
+- Train several models side by side with `joblib.Parallel(n_jobs=4)` and `surrogate.train_run` (2 threads each). Set `os.environ["PYTHONPATH"]` to the project root first so workers can find `tfet`. About 8 GB of RAM is tight, so don't go above 4 jobs.
+- Rough speed with 4 parallel jobs: 5000 steps takes about 3 min per plain or features MLP and about 4 min with the penalty. Notebook 03 took about 25 min in total, so tell me the expected time before a long run.
+- `DeepEnsemble` has never been run, and it trains members one at a time, so it needs parallelising or replacing with `train_run` calls. It has no `n_colloc` or step-budget options of its own.
+- `add_physics_features` works with extra columns such as V_D and T as long as `cols` names them. Dataset 5 inputs are `FEATURES + ["V_D", "T"]`.
+- The data has 0.5 % noise, so always show the noise floor (0.34 % median error on ds4).
+- `monotonic_violations` can't detect staircases, because flat steps never go down. Use fine-grid plots for that.
+- `nbformat` is in miniconda, not `.venv`, so validate notebooks with `/home/kpp/miniconda3/bin/python`.
+
 ## Next steps (do them in order, one per session step)
-1. **Notebook 03, improved surrogates** (`tools/notebook_src/nb03.py` → `notebooks/03_improved_surrogates.ipynb`)
+1. **DONE: Notebook 03, improved surrogates** (`tools/notebook_src/nb03.py` → `notebooks/03_improved_surrogates.ipynb`)
    - Same ds4 curve split as nb02 (`curve_split(ds4, 0.2)`, seed 42).
    - Compare: RFR-linear (paper), RFR-log, XGBoost-log, XGBoost-log plus physics features (λ, log A_tun via `surrogate.add_physics_features`), plain MLP-log (`physics=False`), and the physics-informed MLP (`physics=True`).
    - Report for each: `regression_report`, `fom_errors`, `monotonic_violations`, train and inference time. Also an error-by-decade comparison, fine-grid SS(V_G) and g_m plots, the t_ox < 2 nm extrapolation test, and a learning curve vs `data/learning_curve_rfr.csv`.
@@ -77,4 +107,4 @@ Gotchas:
 3. **Notebook 05:** SHAP on FoM models (which knob drives I_ON / I_OFF / SS, checked against the physics); multi-objective inverse design with Optuna NSGA-II (max I_ON, min SS, I_OFF constraint), verifying the best designs with the simulator; an ipywidgets slider explorer.
 4. Later, if I ask: a `README.md`, a project report or synopsis, and slides.
 
-Start by confirming you've read this, check that the environment works (`.venv/bin/python -c "import tfet"` from the project root), and tell me the plan for the next step before running anything.
+Start by confirming you've read this, check that the environment works (`.venv/bin/python -c "import tfet"` from the project root), ask me the three questions under "Waiting for my answer", and tell me the plan for notebook 04 before running anything.

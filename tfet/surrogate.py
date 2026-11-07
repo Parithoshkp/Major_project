@@ -58,9 +58,11 @@ class LogCurrentSurrogate:
     lambda / A_tun features are appended and the monotonicity penalty is used.
     """
 
-    def __init__(self, cols, physics=True, width=128, depth=4, mono_weight=1.0, seed=0):
+    def __init__(self, cols, physics=True, width=128, depth=4, mono_weight=1.0, seed=0,
+                 n_colloc=1024):
         self.cols, self.physics = list(cols), physics
         self.width, self.depth, self.mono_weight, self.seed = width, depth, mono_weight, seed
+        self.n_colloc = n_colloc      # random points per step for the monotonicity penalty
 
     def _features(self, X):
         return add_physics_features(X, self.cols)[0] if self.physics else X
@@ -87,7 +89,7 @@ class LogCurrentSurrogate:
                 idx = perm[i:i + batch]
                 loss = nn.functional.mse_loss(self.model(Xt[idx]), yt[idx])
                 if self.physics and self.mono_weight > 0:
-                    loss = loss + self.mono_weight * self._mono_penalty(rng, len(idx))
+                    loss = loss + self.mono_weight * self._mono_penalty(rng, self.n_colloc)
                 opt.zero_grad()
                 loss.backward()
                 opt.step()
@@ -112,6 +114,22 @@ class LogCurrentSurrogate:
 
     def predict(self, X):
         return 10 ** self.predict_log(X)
+
+
+def train_run(X, I_D, X_test, cols, physics, mono_weight=1.0, seed=0, steps=5000, batch=4096,
+              threads=2):
+    """Train one surrogate for a fixed number of optimiser steps; return (model, preds, seconds).
+
+    A fixed step budget keeps small training sets from being under-trained. It is a plain
+    module-level function so that joblib can run several trainings side by side.
+    """
+    import time
+    torch.set_num_threads(threads)
+    epochs = int(np.ceil(steps / np.ceil(len(X) / batch)))
+    t0 = time.perf_counter()
+    model = LogCurrentSurrogate(cols, physics=physics, mono_weight=mono_weight, seed=seed)
+    model.fit(X, I_D, epochs=epochs, batch=batch)
+    return model, model.predict(X_test), time.perf_counter() - t0
 
 
 class DeepEnsemble:
