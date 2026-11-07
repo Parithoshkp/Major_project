@@ -3,8 +3,10 @@
 Physics-informed here means three things the paper's random forest does not have:
   1. target is log10(I_D), so the subthreshold region (I_OFF, SS) is learned as well as I_ON
   2. optional physics features: tunnelling length lambda and tunnelling area A_tun
-  3. a monotonicity penalty  relu(-d logI / dV_G)  on random collocation points,
-     so every predicted transfer curve rises with V_G and SS/g_m are well defined
+  3. an optional monotonicity penalty  relu(-d logI / dV_G)  on random collocation points.
+     It is OFF by default (mono_weight=0): notebook 03 found no measurable benefit from it
+     (the log-target MLP was already monotonic) and it costs ~30 % more training time.
+     It is kept so notebook 03 can still be reproduced (it passes mono_weight=1.0 explicitly).
 """
 from __future__ import annotations
 
@@ -55,10 +57,11 @@ class LogCurrentSurrogate:
     """Point-wise surrogate  (V_G, device params, ...) -> log10 I_D.
 
     `cols` names the input columns; it must contain 'V_G'. With physics=True the
-    lambda / A_tun features are appended and the monotonicity penalty is used.
+    lambda / A_tun features are appended. mono_weight > 0 (with physics=True) switches on the
+    monotonicity penalty, which is off by default since notebook 03 (negative result).
     """
 
-    def __init__(self, cols, physics=True, width=128, depth=4, mono_weight=1.0, seed=0,
+    def __init__(self, cols, physics=True, width=128, depth=4, mono_weight=0.0, seed=0,
                  n_colloc=1024):
         self.cols, self.physics = list(cols), physics
         self.width, self.depth, self.mono_weight, self.seed = width, depth, mono_weight, seed
@@ -116,7 +119,7 @@ class LogCurrentSurrogate:
         return 10 ** self.predict_log(X)
 
 
-def train_run(X, I_D, X_test, cols, physics, mono_weight=1.0, seed=0, steps=5000, batch=4096,
+def train_run(X, I_D, X_test, cols, physics, mono_weight=0.0, seed=0, steps=5000, batch=4096,
               threads=2):
     """Train one surrogate for a fixed number of optimiser steps; return (model, preds, seconds).
 
@@ -133,17 +136,28 @@ def train_run(X, I_D, X_test, cols, physics, mono_weight=1.0, seed=0, steps=5000
 
 
 class DeepEnsemble:
-    """M independently initialised surrogates; spread between members = epistemic uncertainty."""
+    """M independently initialised surrogates; the spread between members = epistemic uncertainty.
 
-    def __init__(self, cols, n_members=5, **kw):
-        self.members = [LogCurrentSurrogate(cols, seed=s, **kw) for s in range(n_members)]
+    Members are trained side by side with joblib (each via `train_run`, so the same fixed step
+    budget applies). Keep n_jobs <= 4 on this machine (~7 GB RAM).
+    """
 
-    def fit(self, X, I_D, **kw):
-        for m in self.members:
-            m.fit(X, I_D, **kw)
-        return self
+    def __init__(self, members, train_s=None):
+        self.members, self.train_s = list(members), train_s
+
+    @classmethod
+    def train(cls, X, I_D, cols, n_members=5, physics=True, steps=5000, n_jobs=4, seed0=0,
+              threads=2):
+        from joblib import Parallel, delayed
+        out = Parallel(n_jobs=n_jobs)(
+            delayed(train_run)(X, I_D, X[:1], cols, physics=physics, seed=seed0 + s,
+                               steps=steps, threads=threads) for s in range(n_members))
+        return cls([o[0] for o in out], [o[2] for o in out])
 
     def predict_log(self, X):
-        """Return mean and standard deviation of log10 I_D over the ensemble."""
+        """Return mean and standard deviation of log10 I_D over the ensemble members."""
         P = np.stack([m.predict_log(X) for m in self.members])
         return P.mean(0), P.std(0)
+
+    def predict(self, X):
+        return 10 ** self.predict_log(X)[0]
