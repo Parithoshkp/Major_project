@@ -1,4 +1,4 @@
-"""Neural surrogates for log10(I_D): plain MLP, physics-informed MLP and deep ensembles.
+"""Neural surrogates for log10(I_D): plain MLP and physics-informed MLP.
 
 Physics-informed here means three things the paper's random forest does not have:
   1. target is log10(I_D), so the subthreshold region (I_OFF, SS) is learned as well as I_ON
@@ -134,30 +134,3 @@ def train_run(X, I_D, X_test, cols, physics, mono_weight=0.0, seed=0, steps=5000
     model.fit(X, I_D, epochs=epochs, batch=batch)
     return model, model.predict(X_test), time.perf_counter() - t0
 
-
-class DeepEnsemble:
-    """M independently initialised surrogates; the spread between members = epistemic uncertainty.
-
-    Members are trained side by side with joblib (each via `train_run`, so the same fixed step
-    budget applies). Keep n_jobs <= 4 on this machine (~7 GB RAM).
-    """
-
-    def __init__(self, members, train_s=None):
-        self.members, self.train_s = list(members), train_s
-
-    @classmethod
-    def train(cls, X, I_D, cols, n_members=5, physics=True, steps=5000, n_jobs=4, seed0=0,
-              threads=2):
-        from joblib import Parallel, delayed
-        out = Parallel(n_jobs=n_jobs)(
-            delayed(train_run)(X, I_D, X[:1], cols, physics=physics, seed=seed0 + s,
-                               steps=steps, threads=threads) for s in range(n_members))
-        return cls([o[0] for o in out], [o[2] for o in out])
-
-    def predict_log(self, X):
-        """Return mean and standard deviation of log10 I_D over the ensemble members."""
-        P = np.stack([m.predict_log(X) for m in self.members])
-        return P.mean(0), P.std(0)
-
-    def predict(self, X):
-        return 10 ** self.predict_log(X)[0]

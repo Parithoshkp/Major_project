@@ -20,9 +20,7 @@ made and why, and the key results. **Update it at the end of every step.**
 | Target | linear I_D | **log10 I_D** (the off-state matters) |
 | Evaluation | R², RMSE on linear scale | adds log-space R², error per current decade, **device metrics** (I_ON, I_OFF, V_th, SS), monotonicity, extrapolation, learning curves |
 | Inputs | V_G, L_ov, WK, t_n, t_ox (+V_D) | adds physics features λ and log A_tun; **V_D and temperature T** (paper's future work) |
-| Uncertainty | none | **deep ensemble**: confidence bands, coverage, calibration |
-| Data cost | ~5 h TCAD per 100 curves | **active learning**: pick the next simulations by model uncertainty |
-| Insight / use | none | SHAP explainability, multi-objective inverse design (NSGA-II), interactive explorer (planned, nb05) |
+| Usability | offline scripts | **Streamlit app** (`app/app.py`): upload TCAD curves (or generate them with our simulator), train the model in the browser, predict curves + FoMs for new devices, compare against the paper's RFR |
 
 ## 2. Status
 
@@ -31,8 +29,8 @@ made and why, and the key results. **Update it at the end of every step.**
 | Analytical simulator and datasets ds1–ds5 | 01 | ✅ done |
 | Reproduce the paper's RFR, then show where it breaks | 02 | ✅ done |
 | Improved surrogates: 7 models, ablation, extrapolation, learning curve | 03 | ✅ done |
-| Deep-ensemble uncertainty and active learning on ds5 (V_D + T) | 04 | 🔄 in progress |
-| SHAP, multi-objective inverse design, slider explorer | 05 | ⏳ planned |
+| ~~Deep-ensemble uncertainty and active learning~~ | ~~04~~ | ❌ dropped 2026-11-10 (scope cut) |
+| Streamlit app: TCAD upload or simulator → train → predict | `app/` | ✅ done (2026-11-10) |
 | README, report, slides | n/a | ⏳ when asked |
 
 ## 3. Decision log
@@ -47,6 +45,7 @@ made and why, and the key results. **Update it at the end of every step.**
 | **2026-11-07** | **Drop the monotonicity penalty from the main model** (`mono_weight` default 1.0 → 0.0) | No measurable benefit in any nb03 test (1.00 % vs 0.99 % median error, seed spread ~0.1 %). The log-target MLP was already monotonic (1 curve in 1500 goes down, with or without it), and the penalty costs ~30 % more training time. **Reported as a negative result.** The code is kept, and nb03 still reproduces because it passes `mono_weight` explicitly |
 | 2026-11-07 | Main model from now on = **MLP-log+feat** (log target and physics features, no penalty) | Equal to PI-MLP within the seed spread, and faster |
 | 2026-11-07 | `DeepEnsemble` rewritten to train members in parallel through `train_run` | The old version trained members one at a time and had never been run |
+| **2026-11-10** | **Scope cut: drop notebook 04 (ensembles, active learning) and the planned nb05; the novelty is now a Streamlit app** | User wants a smaller project. The app turns the nb03 result (log-target MLP ≫ paper RFR) into a usable tool: train on your own TCAD data, predict new devices. `DeepEnsemble` and nb04 removed (they are still in git history, commit `8a43b19`) |
 
 ## 4. Change log
 
@@ -72,6 +71,21 @@ made and why, and the key results. **Update it at the end of every step.**
   σ against error, temperature out-of-distribution test, V_D/T bands, and active learning with 3 rules (random, most uncertain, uncertainty-weighted).
 - Prototyped 4 active-learning rules. The k-means "spread-out" rule was dropped because it did worse than the uncertainty-weighted lottery.
 - The full run was stopped at the user's request. Next session: execute it, write the summaries from real outputs, and update this log.
+
+### 2026-11-10: scope cut, Streamlit app
+- Removed `notebooks/04_uncertainty_active_learning.ipynb`, `tools/notebook_src/nb04.py` and `DeepEnsemble` from `tfet/surrogate.py`.
+- Added `app/app.py` (Streamlit + Plotly; installed `streamlit 1.67`, `plotly 7.1` in `.venv`). Three steps on one page:
+  1. **Data:** upload a CSV/TXT (long format `curve_id, L_ov, WK, t_n, t_ox, V_G, I_D`; column names like `Vg`, `Ids [A/um]`, `tox` are recognised; any extra numeric column such as `V_D`, `T` becomes an input) or generate N curves with the simulator (LHS, noise, optional V_D/T).
+  2. **Train:** `LogCurrentSurrogate` on log10 I_D with a curve split (default 20 % held out), optional physics features, optional paper RFR for comparison. Shows the nb03 metrics (median/p95 error, R², I_ON/I_OFF/V_th/SS errors) and a true-vs-predicted test curve.
+  3. **Predict:** sliders over the training range, optional parameter sweep, log/linear I_D–V_G, g_m, SS plots, FoM table, CSV downloads. In simulator mode the true simulator curve is overlaid.
+- Tested headless with `streamlit.testing` (both modes, sweep) and the upload parser on a file with renamed columns.
+
+### 2026-11-10: project report
+- Project report written as a Claude doc: https://claude.ai/artifact/D7gWPrD7gHYndHT5VQP2cm (abstract, paper, simulator, RFR reproduction, improved models with a 7-model chart, the app with a workflow diagram, limitations, conclusion, how to reproduce, references).
+
+### 2026-11-10: app runs on its own
+- Confirmed `app/app.py` needs no notebook outputs (no `data/` or `models/` files): it imports only the `tfet/` package and makes its own data. `cd app && streamlit run app.py` works (tested with `streamlit.testing`, full train run).
+- Added `requirements.txt` (app dependencies; notebook-only packages listed as optional).
 
 ## 5. Results
 
@@ -101,11 +115,10 @@ made and why, and the key results. **Update it at the end of every step.**
 - **Negative result:** the monotonicity penalty gave no measurable gain (see the decision log).
 - **Caveat:** λ and A_tun are formulas inside the simulator, so their gain may be smaller on real TCAD.
 
-### Notebook 04: uncertainty and active learning
-*Notebook built but not yet executed (the run was stopped 2026-11-07). These are **prototype** numbers with the same splits and settings. Replace them with the notebook's own outputs after the run.*
-- Ensemble of 5 MLPs on ds5 (V_D and T vary): median error **1.65 %** vs 1.73–2.36 % for single networks (noise floor 0.34 %).
-- Error bars: raw ±2σ coverage **77 %** (overconfident). After a single calibration factor k ≈ 1.8 fitted on validation curves it is **95.7 %**. Spearman(σ, error) = 0.40.
-- Active learning (50 → 400 curves): uncertainty-based picking lowers the **p95 (bad-case) error** (e.g. 18.7 % vs 25.6 % at 150 curves) but **not the median**. Pure top-σ picking is worse than random on the median after ~150 curves (5.3 % vs 3.7 % at 400). The uncertainty-weighted lottery is the best compromise. One seed per rule.
+### Streamlit app (2026-11-10 test, default settings: 300 simulated curves, 2000 steps, 20 % test)
+- Neural net: median error **2.2 %**, log R² 99.99 %, I_OFF error 0.05 dec, V_th error 0.6 mV, SS_min error 1.6 mV/dec. Trains in ~18 s.
+- Paper RFR on the same split: median error 150 %, log R² 53 %, V_th not extractable.
+- Upload path, 60 curves with renamed columns, 1000 steps: NN median error 4.1 % vs RFR 1232 %.
 
 ## 6. Known limitations (keep these in the report)
 1. All data is analytical, not TCAD. It is smooth and easier to learn than real TCAD.

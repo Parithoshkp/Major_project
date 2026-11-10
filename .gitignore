@@ -5,3 +5,4 @@ __pycache__/
 .jupyter.log
 *:Zone.Identifier
 models/*.tmp
+.streamlit.log

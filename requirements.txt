@@ -1,0 +1,10 @@
+# Needed to run the app:  cd app && streamlit run app.py
+numpy>=2.0
+scipy>=1.13
+pandas>=2.2
+scikit-learn>=1.5
+torch>=2.3
+streamlit>=1.40
+plotly>=5.20
+# Only for the notebooks (optional)
+# matplotlib xgboost shap optuna ipywidgets jupyterlab
