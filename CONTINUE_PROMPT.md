@@ -14,10 +14,8 @@ I'm continuing my major project. Please read this whole brief, then look at the 
 - **Data source:** we have no TCAD, so `tfet/physics.py` is an **analytical simulator** (Kane BTBT with the paper's B = 16.8 MV/cm, λ = sqrt(ε_ns·t_ox·t_n/ε_ox), A_tun = L_ov·2(W+t_n), WK-shifted onset, TAT floor, Varshni temperature dependence). It's calibrated to the paper's figures: nominal (L_ov 5, WK 4.4, t_n 2, t_ox 3) gives I_ON ≈ 2.2e-5 A/µm, I_OFF ≈ 1e-14, SS_min 30–35 mV/dec. Always state honestly that the data comes from an analytical model, not TCAD.
 
 ## How I like to work
-- **One step at a time.** Do one notebook (or one clear step), run it, show me the key results, then **stop and wait** for my go-ahead. Don't run long experiments without telling me first.
+- **One step at a time.** Do one clear step, run it, show me the key results, then **stop and wait** for my go-ahead. Don't run long experiments without telling me first.
 - I use **JupyterLab** to see how everything works.
-- **Easy explanations:** every notebook has a "🧒 In simple words" section with a mini-dictionary at the top, and a markdown cell `### <emoji> Block: <name>` before **every** code cell saying *what it does*, *how to read the plot/table* and *what to notice*. The code also gets short plain comments. Explain like I'm new to device physics and ML.
-- Text in the notebooks must match the actual outputs. Check the results after running and fix any wording that no longer fits.
 
 ## Environment (already set up)
 - Project venv: `.venv` (Python 3.12, created with `uv`) with numpy, scipy, pandas, scikit-learn, matplotlib, xgboost, torch (CPU), shap, optuna, ipywidgets, tqdm, ipykernel. Install extras with `uv pip install --python .venv/bin/python <pkg>`.
@@ -33,34 +31,17 @@ I'm continuing my major project. Please read this whole brief, then look at the 
 
 ## Project layout
 ```
-tfet/                  shared Python package (import with sys.path.append("..") from notebooks/)
+tfet/                  shared Python package (the app adds the project root to sys.path)
   physics.py           analytical simulator: drain_current(), id_vg(params, V_G, V_D, T, noise), NOMINAL, PARAM_RANGES, PARAM_NAMES
   metrics.py           figures_of_merit(V_G, I_D) -> I_on, I_off, on_off, V_th (const. current 1e-10), SS_min, SS_avg
   dataset.py           simulate(devices_df), one_at_a_time, lov_tn_pairs, with_drain_bias, all_parameters, extended (V_D + T)
   evaluate.py          curve_split, regression_report, error_by_decade, fom_per_curve, fom_errors, monotonic_violations, FEATURES
   surrogate.py         LogCurrentSurrogate (MLP on log10 I_D, physics features; penalty OFF by default, mono_weight=0), train_run (fixed step budget, safe for joblib),
 docs/PROJECT_LOG.md    running record of every decision, change and result. UPDATE IT AFTER EVERY STEP (the user asked for this)
-notebooks/
-  01_paper_device_and_data.ipynb      DONE: physics, plots, generates data/ds1..ds5
-  02_baseline_rfr_reproduction.ipynb  DONE: reproduces paper RFR, then Part B shows where it breaks
-  03_improved_surrogates.ipynb        DONE: 7-model comparison, ablation, extrapolation, learning curve
 app/app.py             Streamlit app: data (upload or simulator) -> train -> predict. Run: cd app && ../.venv/bin/streamlit run app.py (needs no notebook outputs)
-models/                best_surrogate_ds4.joblib (PI-MLP seed 0, trained with the penalty; from nb03)
-data/                  ds1_one_at_a_time (400 curves), ds2_lov_tn (200), ds3_drain_bias (900), ds4_all_params (2500), ds5_extended (3000, V_D + T); learning_curve_rfr.csv
-                       long format: curve_id, L_ov, WK, t_n, t_ox, V_D, T, V_G (51 pts, 0-0.5 V), I_D; saved as .pkl
-figures/               saved PNGs from the notebooks
-tools/build_nb.py      converts a "# %%" / "# %% [markdown]" percent-format .py into .ipynb (kernel tfet-ml)
-tools/notebook_src/    nb01.py … nb03.py = editable sources of the notebooks
+models/, data/, figures/  old notebook outputs, NOT used by the app (may be deleted)
 ```
-Build and run a notebook:
-```bash
-cd notebooks
-/home/kpp/miniconda3/bin/python ../tools/build_nb.py ../tools/notebook_src/nb03.py 03_improved_surrogates.ipynb
-/home/kpp/miniconda3/bin/jupyter nbconvert --to notebook --execute --inplace --ExecutePreprocessor.kernel_name=tfet-ml --ExecutePreprocessor.timeout=1200 03_improved_surrogates.ipynb
-```
-Gotchas:
-- In the source files, a markdown cell must start with its own `# %% [markdown]` line, and each code cell must start with `# %%`. Don't nest them.
-- If I have a notebook open in JupyterLab, tell me to reload it from disk and not save the old tab.
+**Notebooks were removed on 2026-11-10** (in git history: `git checkout 28f5b1c -- notebooks tools`). The results below are the record of that analysis.
 
 ## Key results so far (notebook 02, dataset 4 test set unless noted)
 - Paper RFR on ds1: linear R² 99.5% (paper 99.9%). On ds2/ds3/ds4: R² 98.5 / 76.1 / 93.3%.
@@ -103,8 +84,6 @@ The Streamlit app `app/app.py` is built and tested (see the PROJECT_LOG change l
 - `add_physics_features` works with extra columns such as V_D and T as long as `cols` names them. Dataset 5 inputs are `FEATURES + ["V_D", "T"]`.
 - The data has 0.5 % noise, so always show the noise floor (0.34 % median error).
 - `monotonic_violations` can't detect staircases, because flat steps never go down. Use fine-grid plots for that.
-- `nbformat` is in miniconda, not `.venv`, so validate notebooks with `/home/kpp/miniconda3/bin/python`.
-- `nbconvert --inplace` writes the notebook only at the end, so a stopped run leaves it without outputs.
 
 ## Next steps
 1. Notebooks 01–03: DONE.

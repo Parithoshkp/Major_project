@@ -31,6 +31,7 @@ made and why, and the key results. **Update it at the end of every step.**
 | Improved surrogates: 7 models, ablation, extrapolation, learning curve | 03 | ✅ done |
 | ~~Deep-ensemble uncertainty and active learning~~ | ~~04~~ | ❌ dropped 2026-11-10 (scope cut) |
 | Streamlit app: TCAD upload or simulator → train → predict | `app/` | ✅ done (2026-11-10) |
+| Notebooks 01–03 removed from the repo (results kept below; files in git history before this commit) | n/a | 🗑️ 2026-11-10 |
 | README, report, slides | n/a | ⏳ when asked |
 
 ## 3. Decision log
@@ -87,6 +88,11 @@ made and why, and the key results. **Update it at the end of every step.**
 - Confirmed `app/app.py` needs no notebook outputs (no `data/` or `models/` files): it imports only the `tfet/` package and makes its own data. `cd app && streamlit run app.py` works (tested with `streamlit.testing`, full train run).
 - Added `requirements.txt` (app dependencies; notebook-only packages listed as optional).
 
+### 2026-11-10: notebooks removed
+- At the user's request, removed `notebooks/` (01–03) and `tools/` (notebook builder and sources) with `git rm`. The project is now the `tfet/` package + the app.
+- `data/`, `figures/` and `models/` (outputs of the notebooks, not used by the app) are still on disk; deleting them was blocked by the safety check and is left for the user to decide.
+- The notebook results in section 5 stay as the record of the analysis. To get the notebooks back: `git checkout 28f5b1c -- notebooks tools`.
+
 ## 5. Results
 
 ### Notebook 02: the paper's RFR (ds4 test set unless noted)
@@ -127,11 +133,9 @@ made and why, and the key results. **Update it at the end of every step.**
 4. MLP timings are rough because parallel runs share the CPU.
 5. The 1.9 % plateau in the nb03 learning curve is probably the 3000-step budget. This has not been tested.
 
-## 7. How to reproduce
+## 7. How to run
 ```bash
-cd notebooks
-/home/kpp/miniconda3/bin/python ../tools/build_nb.py ../tools/notebook_src/nbXX.py XX_name.ipynb
-/home/kpp/miniconda3/bin/jupyter nbconvert --to notebook --execute --inplace \
-    --ExecutePreprocessor.kernel_name=tfet-ml --ExecutePreprocessor.timeout=2400 XX_name.ipynb
+pip install -r requirements.txt     # or use the existing .venv
+cd app && streamlit run app.py
 ```
-Environment: `.venv` (Python 3.12, uv), Jupyter kernel `tfet-ml`, 16 CPU cores, ~7 GB RAM, no GPU.
+The notebooks that produced section 5 are in git history (`git checkout 28f5b1c -- notebooks tools`).
