@@ -93,6 +93,11 @@ made and why, and the key results. **Update it at the end of every step.**
 - `data/`, `figures/` and `models/` (outputs of the notebooks, not used by the app) are still on disk; deleting them was blocked by the safety check and is left for the user to decide.
 - The notebook results in section 5 stay as the record of the analysis. To get the notebooks back: `git checkout 28f5b1c -- notebooks tools`.
 
+### 2026-11-10: pushed to GitHub, README
+- Force-pushed this repo to git@github.com:Parithoshkp/Major_project.git (public), replacing the old "major_project 7th sem" version. The old commit is kept locally as tag `backup-7th-sem` (2ab9244).
+- `CONTINUE_PROMPT.md` untracked and git-ignored: it stays local only (it is still in older commits' history).
+- Added `README.md`: project summary, quick start, step-by-step app instructions, file format, structure, key results.
+
 ## 5. Results
 
 ### Notebook 02: the paper's RFR (ds4 test set unless noted)
